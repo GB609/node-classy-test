@@ -14,7 +14,7 @@ globalThis.__dirname = __dirname
 
 const ROOT_PATH = process.env.ROOT_PATH || process.cwd();
 
-if (process.env.REQUIRE_PATH) {
+if (fs.existsSync(process.env.REQUIRE_PATH || '')) {
   Module.registerHooks({
     resolve: (spec, context, next) => {
       let shortcut = join(process.env.REQUIRE_PATH, spec);
@@ -315,10 +315,8 @@ class CallingModuleName {
 }
 
 Object.assign(globalThis, {
-  //require: require,
   suite: suite, test: GLOBAL_scheduleTestMethod,
   assert: assert,
   runTestClass, runTestClasses,
   registerLifecycleHook, HOOK_NAMES,
-  //path: (p)=>{ console.error(p + " resolves to:", require.resolve.paths(p))}
 })
