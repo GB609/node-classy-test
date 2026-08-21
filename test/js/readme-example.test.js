@@ -1,3 +1,5 @@
+const testee = require('lib/productive-code.js')
+
 class AmIUseful {
   really() { assert.equal(true, false) }
   ["i dont think so"]() { assert.equal(42, 42) }
@@ -13,3 +15,5 @@ class AmIUseful {
 }
 
 runTestClass(AmIUseful)
+
+test("mult", ()=>{ assert.equal(4, testee.timesTwo(2)) })
