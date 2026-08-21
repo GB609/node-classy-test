@@ -1,0 +1,18 @@
+{
+  "name": "classy-test",
+  "version": "1.0.0",
+  "description": "Tired of using `describe`, `suite`, `it` in node tests? Just use a class as in Java, Python or similar.",
+  "homepage": "https://github.com/GB609/node-classy-test#readme",
+  "bugs": {
+    "url": "https://github.com/GB609/node-classy-test/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GB609/node-classy-test.git"
+  },
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
