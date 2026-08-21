@@ -1,7 +1,7 @@
-import { createRequire } from 'node:module';
+import { Module } from 'node:module'
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'url';
-import { dirname, relative } from 'path';
+import { dirname, relative, join } from 'path';
 
 import { suite, test, before, after, beforeEach, afterEach } from 'node:test';
 import * as assert from 'node:assert/strict';
@@ -12,10 +12,18 @@ const __dirname = dirname(__filename);
 globalThis.__filename = __filename
 globalThis.__dirname = __dirname
 
-const require = createRequire(import.meta.url);
-globalThis.require = require;
-
 const ROOT_PATH = process.env.ROOT_PATH || process.cwd();
+
+if (process.env.REQUIRE_PATH) {
+  Module.registerHooks({
+    resolve: (spec, context, next) => {
+      let shortcut = join(process.env.REQUIRE_PATH, spec);
+      if (fs.existsSync(shortcut)) { return next(shortcut); }
+      return next(spec);
+    }
+  })
+}
+
 let LOGGER = {
   log: NOOP,
   info: NOOP,
@@ -141,7 +149,7 @@ function optionalCallHook(hookName, thisArg = null, ...args) {
  *
  * As long as the passed in instance holds functions named `log`, info`, `warn`, `error` and `debug`, it can be used.
  */
-export function setLogger(consoleLike){ LOGGER = consoleLike; }
+export function setLogger(consoleLike) { LOGGER = consoleLike; }
 
 /* ----- The heavy work functions ----- */
 
@@ -203,7 +211,7 @@ async function runTest(testInstance, testMethod, name, testContext = null) {
   Object.defineProperty(testMethod, 'name', { value: name });
   let error;
   LOGGER.info("BEGIN:", name);
-  try { 
+  try {
     await testMethod.call(testInstance, testContext);
   }
   catch (e) { error = e; }
@@ -307,8 +315,10 @@ class CallingModuleName {
 }
 
 Object.assign(globalThis, {
-  suite: suite,
+  //require: require,
+  suite: suite, test: GLOBAL_scheduleTestMethod,
   assert: assert,
   runTestClass, runTestClasses,
-  registerLifecycleHook, HOOK_NAMES
+  registerLifecycleHook, HOOK_NAMES,
+  //path: (p)=>{ console.error(p + " resolves to:", require.resolve.paths(p))}
 })

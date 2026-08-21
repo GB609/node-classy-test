@@ -13,6 +13,7 @@ TESTS=("${TESTSRC_DIR}"/**/*.test.{mj,j}s)
 export ROOT_DIR SRC_DIR TESTSRC_DIR
 
 export NODE_PATH="$TESTSRC_DIR:$SRC_DIR"
+export REQUIRE_PATH="${ROOT_DIR}/src"
 
 #node
 
