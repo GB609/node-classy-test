@@ -145,9 +145,17 @@ function optionalCallHook(hookName, thisArg = null, ...args) {
 /** 
  * Control additional log output done by the module. 
  * The module is generally using the function names as defined by `console`, but uses a default NOOP stubbed object.
- * This function allows to pass in other implementation, which might as well be 'globalThis.console' or something else.  
+ * This function allows to pass in other implementation, which might as well be `globalThis.console` or something else.  
  *
- * As long as the passed in instance holds functions named `log`, info`, `warn`, `error` and `debug`, it can be used.
+ * As long as the passed in instance holds functions named `log`, `info`, `warn`, `error` and `debug`, it can be used.
+ * 
+ * **Note**:  
+ * Due to the hot asynchronous mess that is node test event handling, the only way to get reliable logging during test 
+ * execution is to completely avoid `context.log` and `context.diagnose` and most of node's standard facilities for output:  
+ * Define something that writes to a completely different location, like a file **exclusive** to the current test (parallel/async test runs...),
+ * and then use that writer persistenly across this module AND the test itself.
+ * 
+ * Even `console` goes over the event channels when called in test files and thus is not reliable.
  */
 export function setLogger(consoleLike) { LOGGER = consoleLike; }
 
