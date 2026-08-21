@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# SPDX-FileCopyrightText: 2026 Karsten Teichmann
+#
+# SPDX-License-Identifier: MIT
+
 ROOT_DIR="$(dirname "$(realpath "$0")")"
 ROOT_DIR="$(realpath "$ROOT_DIR"/../..)"
 
