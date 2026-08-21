@@ -77,6 +77,8 @@ I'll leave it up to the interested reader to write a test file with the regular 
 
 # Current API
 
+## Basics
+
 1. `globalThis.assert`: `node:assert/strict` is added to global context for convenience.
 2. `runTestClass` and `runTestClasses` are currently required to kick of the actual tests.  
    These functions look into the classes and wrap the methods defined on them into calls to `test` from node accordingly.
@@ -86,6 +88,23 @@ I'll leave it up to the interested reader to write a test file with the regular 
 4. `suite`, `describe` and `it` shouldn't be used at all as they are not really compatible with the patched context.  
    But if you were planning on doing so, you wouldn't think about using `node-classy-test`, would you?
    I didn't bother with them as the intention was to do away with them in the first place.
+
+## Test hooks / special methods
+
+```js
+class TestClass {
+  // Invoked during instance creation. Concrete test name will be passed.
+  constructor(name) 
+
+  // Test hooks running once per class, before or after ALL test methods. Gets class object as 'this'.
+  beforeAll(testContext)
+  afterAll(testContext)
+
+  // Running once per actual test method/instance. Will have class instance as 'this'.
+  beforeEach(testContext)
+  afterEach(testContext)
+}
+```
 
 # Caveats / Gotchas and Notes
 
@@ -112,9 +131,88 @@ If a test needs half a sentence to explain what's going on, it's too complicated
 
 So i set out to implement a wrapper that deals with that bothersome syntax for me. 
 
+# Advanced features
+
+## Run parameterized tests
+Define a list of several data tuples to run against the same function.
+
+The basic syntax is
+
+```js
+testRunnable = parameterized(
+  [],                       // Constellations to test. Once entry is passed per test run.
+  function(use-case args),  // Function to run the actual test. Runs once per constellation as subtest
+  ?nameBuilder              // Optional. Used to customize subtest names
+)
+```
+
+More details:
+- **constellations**: Top level must be array. Entries can be arbitrary, but must match to what the test function expects.  
+  Special exception: when the entry is an array itself, it will be destructured before passing to the test function.  
+  **Note:** It is NOT required that this array is a constant. It could also be produced by a function or inline code.
+- **test function**: This contains the test logic. Important: It MUST be a function, if the test function shall be able to
+  reference `this` (and thus make use of test hooks). Lambdas can't be rebound and don't support `this`. 
+- **nameBuilder**: Each subtest must be uniquely named and distinguishable.  
+  Parameterized tries to apply a sensible default which constructs a name from the test function name and a stringification
+  of the constellation, which is why this argument is optional.  
+  But the default can lead to very long and illegible names for 2-dimensional arrays with many parameters.  
+  For this reason, nameBuilder can be specified, either in one of 3 different 'declarative' ways or ultimately by supplying
+  a function.
+
+What actually happens here:  
+1. `parameterized` generates a dictionary of test specifications
+2. These specifications are bound locally to a dynamically created 'test function' which matches the node test api.
+3. When this test is picked up, it uses the actual `TestContext` it receives during runtime to run the predefined subtests.
+4. The return of `parameterized` can directly be used with `test('something', parameterizedReturn)`.  
+   But in this case, `this` will just be a new regular object per constellation.
+5. The function returned by `parameterized` can also be assigned to a static member of a test class, so it will be picked
+   when `runTestClass` scans the class's prototype. In this case, the effective tests all will have an instance of the
+   parent class as `this` and all test hooks run as they were defined on the class.
+
+Example:
+
+```js
+class ParameterizedTests {
+  static isNaN = parameterized(
+    [1, 2, 3, Number.NaN, 5, 9],
+    function(value) { assert.ok(Number.isNaN(value)); }
+    //'${0}' // 3 parameter is optional, but can be used to control the generated test names
+  )
+
+  static multipleParameter = parameterized(
+    [
+      [4, 5],
+      [9, 7]
+    ],
+    function firstIsLarger(a, b) { assert.ok(a > b); }
+  )
+}
+
+runTestClass(ParameterizedTests);
+```
+
+Result:
+
+```sh
+▶ ParameterizedTests
+  ▶ isNaN
+    ✖ [0] - 1 (4.808864ms)
+    ✖ [1] - 2 (0.519034ms)
+    ✖ [2] - 3 (0.510348ms)
+    ✔ [3] - NaN (0.239259ms)
+    ✖ [4] - 5 (0.409168ms)
+    ✖ [5] - 9 (0.336933ms)
+  ✖ isNaN (8.541349ms)
+  ▶ multipleParameter
+    ✖ firstIsLarger[0] - [4,5] (0.455054ms)
+    ✔ firstIsLarger[1] - [9,7] (0.148298ms)
+  ✖ multipleParameter (1.104192ms)
+✖ ParameterizedTests (11.271792ms)
+```
+
 # Open tasks
 
-- [ ] Migrate `parameterized`.  
+- [x] Migrate `parameterized`.  
   (For the curious: [classy parameterized js test in use](https://github.com/GB609/batocera-ES-onArch/blob/40e078b8bc5b27c563add5d786cbd6ac6a028646/test/js/libs/path-utils.test.js#L52) )
 - [ ] add tests
 - [ ] document examples and behaviour for `constructor`, `before{all,each}` and `after{all,each}`

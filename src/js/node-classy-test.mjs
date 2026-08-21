@@ -2,6 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 
+/**
+ * Use class syntax for test definition instead of describe/it/suite/test
+ * @module node-classy-test
+ */
+
 import { Module } from 'node:module'
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'url';
@@ -162,6 +167,74 @@ function optionalCallHook(hookName, thisArg = null, ...args) {
  * Even `console` goes over the event channels when called in test files and thus is not reliable.
  */
 export function setLogger(consoleLike) { LOGGER = consoleLike; }
+
+/* ----- Advanced test tooling ----- */
+
+/**
+ * Define a batch of tests from a list of parameters and one test function.
+ *
+ * Arguments:<br>
+ * <pre>
+ * parameterList : [] of test constellations.
+ *                 Every top-level entry in the array denotes one test run/constellation.
+ *                 Second level arrays are possible and will be unrolled for convenience.
+ * testFunction : Will be called with arguments defined in one entry of parameterList
+ * nameBuilder  : By default, test names are generated from constellations by stringifying each parameter of the constellation.
+ *                The stringification depends on type and handles a few special cases to keep names short (e.g. not using full function.toString())
+ *                This optional parameter allows customization. How it applies depends on the type:
+ *                - {key1:idx, key2:idx}: generate key-value-pairs with the given key names and values located under the given index
+ *                - [idx1, idx2]: stringify values of selected constellation parameters only
+ *                - "text ${idx1}, ${idx2}...": replace '${idx}' with stringified values of the respective constellation parameter
+ *                - function(testDict, testFunction, ...parameters): full customization. Called once per constellation and is expected to return a name string
+ * </pre>
+ */
+export function parameterized(parameterList, testFunction, nameBuilder = defaultParameterizedNameBuilder) {
+  let testDict = {}
+  for (let constellation of parameterList) {
+    let params = [];
+    if (Array.isArray(constellation)) { params = [...constellation] }
+    else { params = [constellation] }
+
+    let nameParams = [];
+    let nameBuilderFunction = nameBuilder;
+    switch (type(nameBuilder)) {
+      case "array":
+        for (let idx of nameBuilder) {
+          nameParams.push(params[idx] || undefined)
+        }
+        break;
+      case 'object':
+        let customized = {}
+        for (let [key, value] of Object.entries(nameBuilder)) {
+          customized[key] = params[value];
+        }
+        nameParams.push(customized);
+        break;
+      case 'string':
+        let resultingName = nameBuilder;
+        params.forEach((value, index) => {
+          let keyToReplace = new RegExp(`\\$\\{${index}\\}`, 'g');
+          let replacement = stringify(null, value);
+          resultingName = resultingName.replace(keyToReplace, replacement);
+        })
+        nameBuilderFunction = () => resultingName
+        break;
+      default:
+        nameParams.push(...params)
+    }
+
+    if (typeof nameBuilderFunction != "function") { nameBuilderFunction = defaultParameterizedNameBuilder }
+
+    let name = nameBuilderFunction(testDict, testFunction, ...nameParams)
+    testDict[name] = async function() { return await testFunction.call(this, ...params) };
+  }
+
+  async function runParameterized(context) {
+    return await runTestsFromObject(testDict, this.constructor, context);
+  }
+  runParameterized.origin = parameterized;
+  return runParameterized;
+}
 
 /* ----- The heavy work functions ----- */
 
@@ -326,9 +399,42 @@ class CallingModuleName {
   }
 }
 
+/* ----- Helpers for parameterized ----- */
+function type(something) {
+  if (Array.isArray(something)) {
+    return "array"
+  } else if (something instanceof RegExp) {
+    return "regex"
+  }
+  return typeof something;
+}
+const TYPE_STRINGIFIER = {
+  function: (fn) => fn.name,
+  regex: (r) => r.toString(),
+  array: (arr) => JSON.stringify(arr, stringify).replace(/(?<!\\)"/g, '').replace(/\\"/g, '"'),
+  object: (obj) => JSON.stringify(obj, stringify).replace(/(?<!\\)"/g, '').replace(/\\"/g, '"'),
+  string: str => `'${str.replaceAll('\\n', '\\%n').replaceAll('\n', '%n')}'`
+}
+function stringify(something, value) {
+  if (something == "") { return value }
+  if (typeof value != "undefined") { something = value }
+  let valType = type(something);
+  let stringifier = TYPE_STRINGIFIER[valType] || String
+  return stringifier(something);
+}
+
+function defaultParameterizedNameBuilder(testDict, testFunction, ...parameters) {
+  let index = Object.entries(testDict).length;
+  if (parameters.length == 1) { parameters = parameters.pop() }
+  let stringified = `${stringify(parameters)}`;
+  return `${testFunction.name}[${index}] - ${stringified}`;
+}
+
+/* ----- global context ----- */
 Object.assign(globalThis, {
   suite: suite, test: GLOBAL_scheduleTestMethod,
   assert: assert,
   runTestClass, runTestClasses,
+  parameterized: parameterized,
   registerLifecycleHook, HOOK_NAMES,
 })
