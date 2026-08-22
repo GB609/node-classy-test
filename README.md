@@ -118,7 +118,11 @@ class TestClass {
   the actual final nodes running tests. Intermediate layers must run sync. I just didn't bother as it is too much work.
   for too little benefit. This is actually a restriction/problem with the underlying test framework from node itself.
 
-- The `package.json` only serves the purpose of getting code docs and completion for node into eclipse. I don't plan on publishing to that spam-infested hole called NPM.
+- The `package.json` only serves the purpose of getting code docs and completion for node into eclipse. I don't plan on publishing to NPM.
+
+- It's currently not possibly to restart just a single test from a class.
+
+- `test.skip` and other similar features of node test framework don't work (yet). Didn't see a need for them up to now.
 
 # Why
 I generally like the embedded test framework in Node because it means that i don't have to deal with managing dependencies to some third-party libraries.
@@ -134,7 +138,9 @@ So i set out to implement a wrapper that deals with that bothersome syntax for m
 # Advanced features
 
 ## Run parameterized tests
-Define a list of several data tuples to run against the same function.
+Define a list of several data sets to run against the same function. Each data set will be an individual sub test, so one failure will not stop/cancel other iterations from the set. Thus, test reports will accurately reflect and contain the specific sets which actually failed.
+
+The syntax is more verbose than the simple case, but it allows to quickly add variation tests without having to deal with most of the plumbing behind it.
 
 The basic syntax is
 
@@ -151,7 +157,7 @@ More details:
   Special exception: when the entry is an array itself, it will be destructured before passing to the test function.  
   **Note:** It is NOT required that this array is a constant. It could also be produced by a function or inline code.
 - **test function**: This contains the test logic. Important: It MUST be a function, if the test function shall be able to
-  reference `this` (and thus make use of test hooks). Lambdas can't be rebound and don't support `this`. 
+  reference `this` (and thus make use of test hooks). Lambdas can't be rebound and don't support `this`.
 - **nameBuilder**: Each subtest must be uniquely named and distinguishable.  
   Parameterized tries to apply a sensible default which constructs a name from the test function name and a stringification
   of the constellation, which is why this argument is optional.  
